@@ -5,6 +5,8 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,6 +41,31 @@ public class BufferedIOBenchmark {
 	final static String FILENAME_PREFIX = "test-data"; // we will write and read test files at this location
 	final static long NUMBER_OF_BYTES_TO_WRITE = 1024 * 1024 * 10; // we will write and read 10 MB files
 	
+        private void resultCSV(String operation, int blockSize, long numberOfBytes, IOStrategy ioStrategy, long time)
+        {
+            BufferedWriter output = null;
+            try{;
+                output = new BufferedWriter(new FileWriter("result.csv", true));
+                output.write(operation + ',' + ioStrategy + ',' + Integer.toString(blockSize) + ',' + Long.toString(numberOfBytes) + ',' + Long.toString(time));
+                output.newLine();
+                output.flush();
+            }
+            catch (IOException ex){
+                LOG.log(Level.SEVERE, ex.getMessage(), ex);
+            }
+            finally{
+                try{
+                    if(output != null){
+                        output.close();
+                    }
+                }
+                catch (IOException ex){
+                    LOG.log(Level.SEVERE, ex.getMessage(), ex);
+                }
+            }
+            
+        }
+        
 	/**
 	 * This method drives the generation of test data file, based on the parameters passed. The method opens a
 	 * FileOutputStream. Depending on the strategy, it wraps a BufferedOutputStream around it, or not. The method
@@ -74,7 +101,9 @@ public class BufferedIOBenchmark {
 				LOG.log(Level.SEVERE, ex.getMessage(), ex);
 			}
 		}
-		LOG.log(Level.INFO, "  > Done in {0} ms.", Timer.takeTime());
+                long time = Timer.takeTime();
+		LOG.log(Level.INFO, "  > Done in {0} ms.", time);
+                resultCSV("WRITE", blockSize, numberOfBytesToWrite, ioStrategy, time);
 	}
 	
 	/**
@@ -122,6 +151,7 @@ public class BufferedIOBenchmark {
 	private void consumeTestData(IOStrategy ioStrategy, int blockSize) {
 		LOG.log(Level.INFO, "Consuming test data ({0}, block size: {1}...", new Object[]{ioStrategy, blockSize});
 		Timer.start();
+                int numberOfBytesRead = 0;
 
 		InputStream is = null;
 		try {
@@ -134,7 +164,7 @@ public class BufferedIOBenchmark {
 			}
 
 			// Now, let's call the method that does the actual work and produces bytes on the stream
-			consumeDataFromStream(is, ioStrategy, blockSize);
+			numberOfBytesRead = consumeDataFromStream(is, ioStrategy, blockSize);
 
 			// We are done, so we only have to close the input stream
 			is.close();
@@ -149,7 +179,9 @@ public class BufferedIOBenchmark {
 				LOG.log(Level.SEVERE, ex.getMessage(), ex);
 			}
 		}
-		LOG.log(Level.INFO, "  > Done in {0} ms.", Timer.takeTime());
+                long time = Timer.takeTime();
+		LOG.log(Level.INFO, "  > Done in {0} ms.", time);
+                resultCSV("READ", blockSize, numberOfBytesRead, ioStrategy, time);
 
 	}
 
@@ -158,7 +190,7 @@ public class BufferedIOBenchmark {
 	 * Depending on the strategy, the method either reads bytes one by one OR in chunks (the size of the chunk
 	 * is passed in parameter). The method does not do anything with the read bytes, except counting them.
 	 */ 
-	private void consumeDataFromStream(InputStream is, IOStrategy ioStrategy, int blockSize) throws IOException {
+	private int consumeDataFromStream(InputStream is, IOStrategy ioStrategy, int blockSize) throws IOException {
 		int totalBytes = 0;
 		// If the strategy dictates to write byte by byte, then it's easy to write the loop; but let's just hope that our client has 
 		// given us a buffered output stream, otherwise the performance will be really bad
@@ -180,6 +212,7 @@ public class BufferedIOBenchmark {
 		}
 		
 		LOG.log(Level.INFO, "Number of bytes read: {0}", new Object[]{totalBytes});
+                return totalBytes;
 	}
 
 	/**
@@ -187,6 +220,28 @@ public class BufferedIOBenchmark {
 	 */
 	public static void main(String[] args) {
 		System.setProperty("java.util.logging.SimpleFormatter.format", "%5$s %n");
+                
+                // Création du fichier csv et des en-têtes
+                BufferedWriter output = null;
+                try{
+                    output = new BufferedWriter(new FileWriter("result.csv", true));
+
+                    output.write("operation" + ',' + "strategy" + ',' + "blockSize" + ',' + "fileSizeInBytes" + ',' + "durationInMs");
+                    output.newLine();   
+                }
+                catch (IOException ex){
+                    LOG.log(Level.SEVERE, ex.getMessage(), ex);
+                }
+                finally{
+                    try{
+                        if(output != null){
+                            output.close();
+                        }
+                    }
+                    catch (IOException ex){
+                        LOG.log(Level.SEVERE, ex.getMessage(), ex);
+                    }
+                }
 
 		BufferedIOBenchmark bm = new BufferedIOBenchmark();
 
